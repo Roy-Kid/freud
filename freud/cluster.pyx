@@ -6,6 +6,11 @@ The :class:`freud.cluster` module aids in finding and computing the properties
 of clusters of points in a system.
 """
 
+from cython.operator cimport dereference
+
+from freud.locality cimport _PairCompute
+from freud.util cimport _Compute
+
 import warnings
 
 import numpy as np
@@ -14,13 +19,10 @@ import freud.locality
 import freud.util
 
 cimport numpy as np
-from cython.operator cimport dereference
 
 cimport freud._cluster
 cimport freud.locality
 cimport freud.util
-from freud.locality cimport _PairCompute
-from freud.util cimport _Compute
 
 # numpy must be initialized. When using numpy from C or Cython you must
 # _always_ do that, or you will have segfaults
@@ -243,6 +245,25 @@ cdef class ClusterProperties(_Compute):
         return freud.util.make_managed_numpy_array(
             &self.thisptr.getClusterSizes(),
             freud.util.arr_type_t.UNSIGNED_INT)
+
+    @_Compute._computed_property
+    def principal_moments(self):
+        return np.diagonal(self.gyrations, axis1=-2, axis2=-1)  
+
+    @_Compute._computed_property
+    def asphericity(self):
+        """(:math:`N_{clusters}`) :class:`numpy.ndarray`: The asphercity of each cluster.
+        """
+        pm = self.principal_moments
+        Ac = ((pm[:,0]-pm[:,1])**2 + (pm[:,1]-pm[:,2])**2 + (pm[:,2]-pm[:,0])**2) / (np.sum(pm, axis=1)**2)
+        return Ac*0.5
+
+    @_Compute._computed_property
+    def prolateness(self):
+        pm = self.principal_moments
+        ave_pm = np.mean(pm, axis=1)
+        Pc = ((pm[:,0]-ave_pm)*(pm[:,1]-ave_pm)*(pm[:,2]-ave_pm)) / ave_pm**3
+        return Pc
 
     def __repr__(self):
         return "freud.cluster.{cls}()".format(cls=type(self).__name__)
